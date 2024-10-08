@@ -1,0 +1,3 @@
+curl -X POST http://localhost:5000/scrape-chat \
+     -H "Content-Type: application/json" \
+     -d '{"meetingUrl": "https://example.com/meeting"}'

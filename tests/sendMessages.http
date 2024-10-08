@@ -1,0 +1,3 @@
+curl -X POST http://localhost:5000/send-message \
+     -H "Content-Type: application/json" \
+     -d '{"meetingUrl": "https://example.com/meeting", "message": "Привет, мир!"}'

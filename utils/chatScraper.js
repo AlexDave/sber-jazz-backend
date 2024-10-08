@@ -2,66 +2,10 @@ const puppeteer = require('puppeteer');
 const axios = require('axios'); // Убедитесь, что axios установлен
 
 // Функция для парсинга чата через Puppeteer
-async function scrapeChat(meetingUrl) {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--ignore-certificate-errors'] // Игнорируем ошибки сертификатов (для тестирования)
-  });
-  const page = await browser.newPage();
-
+async function scrapeChat(page) {
   // Устанавливаем разрешение страницы
   await page.setViewport({ width: 1920, height: 1080 });
   console.log('Установлено разрешение страницы: 1920x1080');
-
-  console.log('Переход на URL:', meetingUrl);
-
-  // Переходим на страницу встречи
-  try {
-    await page.goto(meetingUrl, { waitUntil: 'networkidle0' });
-    await page.screenshot({ path: 'initial_page_screenshot.png' }); // Скриншот первой страницы
-  } catch (error) {
-    console.error('Ошибка при переходе на URL:', error);
-    await page.screenshot({ path: 'error_screenshot_goto.png' }); // Делаем скриншот
-    await browser.close();
-    return;
-  }
-
-  try {
-    await page.waitForSelector('[data-testid="continueInBrowser"]');
-    await page.click('[data-testid="continueInBrowser"]');
-    console.log('Нажали на кнопку "Продолжить в браузере"');
-  } catch (error) {
-    console.error('Ошибка при нажатии на кнопку "Продолжить в браузере":', error);
-    await page.screenshot({ path: 'error_screenshot_continue.png' });
-    await browser.close();
-    return;
-  }
-
-  try {
-    await page.waitForSelector('input[name="name"]');
-    await page.type('input[name="name"]', 'СекретAIрь');
-    console.log('Ввели имя: СекретAIрь');
-  } catch (error) {
-    console.error('Ошибка при вводе имени:', error);
-    await page.screenshot({ path: 'error_screenshot_input_name.png' });
-    await browser.close();
-    return;
-  }
-
-  // Ожидаем, пока кнопка "joinConf" станет доступной (не disabled)
-  try {
-    await page.waitForFunction(() => {
-      const button = document.querySelector('[data-testid="joinConf"]');
-      return button && !button.disabled; // Проверяем, что кнопка существует и не отключена
-    });
-    await page.click('[data-testid="joinConf"]');
-    console.log('Нажали на кнопку "Присоединиться к конференции"');
-  } catch (error) {
-    console.error('Ошибка при ожидании кнопки "joinConf":', error);
-    await page.screenshot({ path: 'error_screenshot_join.png' });
-    await browser.close();
-    return;
-  }
 
   // Ожидаем загрузку чата
   try {
@@ -70,8 +14,7 @@ async function scrapeChat(meetingUrl) {
   } catch (error) {
     console.error('Ошибка при ожидании чата:', error);
     await page.screenshot({ path: 'error_screenshot_chat.png' });
-    await browser.close();
-    return;
+    throw new Error('Ошибка при ожидании чата');
   }
 
   // Функция для получения сообщений
@@ -94,8 +37,6 @@ async function scrapeChat(meetingUrl) {
 
       if (!messagesExist) {
         console.log('Сообщений нет');
-        // Отправляем сообщение на бэк
-        //await axios.post('http://localhost:5000/parse-chat', { messages: 'Сообщений нет' });
         return 'Сообщений нет';
       }
 
@@ -153,11 +94,6 @@ async function scrapeChat(meetingUrl) {
         const messages = await getMessages(page); // Передаем текущую страницу в функцию получения сообщений
         console.log('Полученные сообщения:', messages); // Логируем полученные сообщения
 
-        // Отправка сообщений на бэк, если они есть
-        if (messages !== 'Сообщений нет') {
-          //await axios.post('http://localhost:5000/parse-chat', { messages });
-        }
-
         return messages; // Возвращаем сообщения, если нужно
       } else {
         console.log('Участники есть, продолжаем ожидание...');
@@ -172,7 +108,6 @@ async function scrapeChat(meetingUrl) {
   while (true) {
     const result = await checkParticipants(page); // Передаем страницу в функцию проверки участников
     if (result) {
-      await browser.close(); // Закрываем браузер в конце
       return result; // Выход из цикла, если были получены сообщения
     }
     await new Promise(resolve => setTimeout(resolve, 5000)); // Проверяем каждые 5 секунд
@@ -181,4 +116,3 @@ async function scrapeChat(meetingUrl) {
 
 // Экспортируем функцию
 module.exports = scrapeChat;
- 
