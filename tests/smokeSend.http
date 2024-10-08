@@ -1,0 +1,2 @@
+
+curl -X POST http://localhost:5000/send-message -H "Content-Type: application/json" -d '{"sessionId": "1632947932", "message": "Привет, мир!"}'

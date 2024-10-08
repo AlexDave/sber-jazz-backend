@@ -3,12 +3,12 @@ const puppeteer = require('puppeteer');
 // Функция для подключения к чату
 async function connectMeatup(meetingUrl) {
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: false,
     args: ['--ignore-certificate-errors'] // Игнорируем ошибки сертификатов (для тестирования)
   });
   const page = await browser.newPage();
 
-  await page.setViewport({ width: 1920, height: 1080 });
+  await page.setViewport({ width: 1080, height: 760 });
   console.log('Установлено разрешение страницы: 1920x1080');
   console.log('Переход на URL:', meetingUrl);
 
@@ -30,7 +30,7 @@ async function connectMeatup(meetingUrl) {
   await typeInput(page, 'input[name="name"]', 'СекретAIрь', 'Ввели имя: СекретAIрь');
 
   // Присоединяемся к конференции
-  await waitAndClick(page, '[data-testid="joinConf"]', 'Нажали на кнопку "Присоединиться к конференции"');
+  await clickButton(page, '[data-testid="joinConf"]', 'Нажали на кнопку "Присоединиться к конференции"');
 
   // Ожидаем загрузку чата
   await waitForSelector(page, '[data-testid="chat"]', 'Ошибка при ожидании чата', 'chat_page_screenshot.png');
@@ -58,20 +58,6 @@ async function typeInput(page, selector, text, logMessage) {
   } catch (error) {
     console.error(`Ошибка при вводе текста в ${selector}:`, error);
     await page.screenshot({ path: `error_screenshot_input_${selector}.png` });
-  }
-}
-
-async function waitAndClick(page, selector, logMessage) {
-  try {
-    await page.waitForFunction(() => {
-      const button = document.querySelector(selector);
-      return button && !button.disabled;
-    });
-    await page.click(selector);
-    console.log(logMessage);
-  } catch (error) {
-    console.error(`Ошибка при ожидании кнопки ${selector}:`, error);
-    await page.screenshot({ path: `error_screenshot_${selector}.png` });
   }
 }
 
