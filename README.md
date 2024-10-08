@@ -40,7 +40,6 @@
 Использование
 Для запуска парсера используйте следующий код:
 
-    ```js
     const scrapeChat = require('./utils/chatScraper');
 
     const meetingUrl = 'your-meeting-url';
@@ -51,7 +50,6 @@
     .catch(error => {
         console.error('Ошибка:', error);
     });
-    ```
 
 # Связь
 
