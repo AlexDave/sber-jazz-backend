@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 const axios = require('axios'); // Убедитесь, что axios установлен
 
 // Функция для парсинга чата через Puppeteer
-async function scrapeChat(meetingUrl, startTime, endTime) {
+async function scrapeChat(meetingUrl) {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--ignore-certificate-errors'] // Игнорируем ошибки сертификатов (для тестирования)
@@ -39,66 +39,96 @@ async function scrapeChat(meetingUrl, startTime, endTime) {
 
   // Ожидаем загрузку чата
   await page.waitForSelector('[data-testid="chat"]');
-  await page.click('[data-testid="chat"]');
-  console.log('Нажали на кнопку "Чат"');
 
-  // Добавляем отступ в 15 минут к времени начала
-  const startTimeWithOffset = new Date(new Date(startTime).getTime() + 15 * 60000); // Добавляем 15 минут
+  // Функция для получения сообщений
+  const getMessages = async (currentPage) => {
+    await currentPage.click('[data-testid="chat"]');
+    console.log('Нажали на кнопку "Чат"');
 
-  // Функция для проверки участников
-  const checkParticipants = async () => {
-    const participants = await page.evaluate(() => {
-      const participants = document.querySelectorAll('[data-testid="participant"]');
-      return participants.length; // Возвращаем количество участников
-    });
-
-    console.log(`Количество участников: ${participants}`);
-
-    if (participants <= 1) {
-      console.log('Участников 1 или меньше, отправляем чат на бэк');
-      const messages = await page.evaluate(() => {
-        const chatMessages = Array.from(document.querySelectorAll('[data-testid="messageContainer"]'));
-        return chatMessages.map(message => ({
-          sender: message.querySelector('[data-testid="messageUserName"]').innerText,
-          content: message.querySelector('[data-testid="messageContent"] .HighlightedText__Container-sc-1g9o0nl-0').innerText,
-          timestamp: message.querySelector('[data-testid="time"]').innerText,
-        }));
-      });
-
-      // Отправляем данные на бэк
-      try {
-        await axios.post('http://localhost:5000/parse-chat', { messages });
-        console.log('Чат успешно отправлен на бэк');
-      } catch (error) {
-        console.error('Ошибка при отправке чата на бэк:', error);
-      }
-    }
-  };
-
-  // Запускаем проверку участников каждые 5 минут
-  const interval = setInterval(async () => {
-    const now = new Date();
-    if (now >= new Date(endTime)) {
-      clearInterval(interval); // Останавливаем интервал, если время окончания достигнуто
-      console.log('Время окончания достигнуто, прекращаем проверку участников.');
+    // Ожидаем загрузки области сообщений
+    try {
+      await currentPage.waitForSelector('[data-testid="chatRoot"]', { timeout: 60000 });
+    } catch (error) {
+      console.error('Ошибка при ожидании элемента chatRoot:', error);
+      await currentPage.screenshot({ path: 'error_screenshot.png' }); // Делаем скриншот для анализа
       await browser.close();
       return;
     }
 
-    if (now >= startTimeWithOffset) { // Начинаем проверку участников только после 15 минут от начала
-      await checkParticipants();
+    // Переключаем контекст страницы на всю страницу браузера
+    await currentPage.bringToFront();
+
+    // Проверяем, есть ли сообщения
+    const messagesExist = await currentPage.evaluate(() => {
+      const msgsArea = document.querySelector('[data-testid="msgsArea"]');
+      return msgsArea && msgsArea.children.length > 0; // Проверяем наличие сообщений
+    });
+
+    if (!messagesExist) {
+      console.log('Сообщений нет');
+      // Отправляем сообщение на бэк
+      await axios.post('http://localhost:5000/parse-chat', { messages: 'Сообщений нет' });
+      return 'Сообщений нет';
     }
-  }, 5 * 60 * 1000); // 5 минут в миллисекундах
 
-  // Ждем до окончания встречи
-  while (new Date() < new Date(endTime)) {
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем 1 секунду
+    // Если сообщения есть, получаем их
+    const messages = await currentPage.evaluate(() => {
+      const messageElements = Array.from(document.querySelectorAll('[data-testid="messageContainer"]'));
+      return messageElements.map(message => ({
+        sender: message.querySelector('[data-testid="messageUserName"]').innerText,
+        content: message.querySelector('[data-testid="messageContent"] .HighlightedText__Container-sc-1g9o0nl-0').innerText,
+        timestamp: message.querySelector('[data-testid="time"]').innerText,
+      }));
+    });
+
+    return messages; // Возвращаем сообщения
+  };
+
+  // Функция для проверки участников
+  const checkParticipants = async (currentPage) => {
+    // Нажимаем на кнопку "Участники"
+    await currentPage.waitForSelector('[data-testid="participants"]');
+    await currentPage.click('[data-testid="participants"]');
+    console.log('Нажали на кнопку "Участники"');
+
+    // Ждем загрузки списка участников
+    await currentPage.waitForSelector('[data-testid="participantsListRoot"]');
+
+    const participants = await currentPage.evaluate(() => {
+      // Получаем список участников из контейнера
+      const participantElements = Array.from(document.querySelectorAll('[data-testid^="participantItem-"]'));
+      return participantElements.map(participant => {
+        return participant.querySelector('[class*="ParticipantItem__StyledParticipantName"]').innerText; // Селектор с содержанием класса
+      });
+    });
+
+    console.log(`Участники: ${participants}`);
+
+    // Проверяем, что в списке только "СекретAIрь (вы)"
+    const isOnlySecretAI = participants.length === 1 && participants[0] === 'СекретAIрь (вы)';
+
+    if (isOnlySecretAI) {
+      console.log('СекретAIрь остался один, получаем сообщения...');
+      const messages = await getMessages(currentPage); // Передаем текущую страницу в функцию получения сообщений
+      console.log('Полученные сообщения:', messages); // Логируем полученные сообщения
+
+      // Отправка сообщений на бэк, если они есть
+      if (messages !== 'Сообщений нет') {
+        await axios.post('http://localhost:5000/parse-chat', { messages });
+      }
+
+      await browser.close();
+      return messages; // Возвращаем сообщения, если нужно
+    } else {
+      console.log('Участники есть, продолжаем ожидание...');
+    }
+  };
+
+  // Проверка участников в бесконечном цикле
+  while (true) {
+    await checkParticipants(page); // Передаем страницу в функцию проверки участников
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Проверяем каждые 5 секунд
   }
-
-  // Останавливаем интервал после окончания
-  clearInterval(interval);
-  console.log('Проверка участников завершена, закрываем браузер.');
-  await browser.close();
 }
 
 // Экспортируем функцию
