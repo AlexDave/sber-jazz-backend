@@ -2,6 +2,8 @@ const puppeteer = require('puppeteer');
 
 // Функция для парсинга чата
 async function scrapeChat(page, sessionId) {
+
+  let messages = [];
   console.log('Начинаем парсинг чата...');
 
   // Ожидаем, пока чат станет доступен
@@ -22,7 +24,7 @@ async function scrapeChat(page, sessionId) {
   }
 
   // Получаем сообщения из чата
-  const messages = await page.evaluate(() => {
+  messages = await page.evaluate(() => {
     const messageElements = Array.from(document.querySelectorAll('[data-testid="messageContainer"]'));
     return messageElements.map(message => ({
       sender: message.querySelector('[data-testid="messageUserName"]').innerText,
@@ -39,7 +41,7 @@ async function scrapeChat(page, sessionId) {
     console.log('Участники проверены, возвращаем сообщения.');
   } else {
     console.log('Участники не соответствуют условиям, финализируем встречу.');
-    await finalizeMeeting(sessionId); // Финализируем встречу
+    await finalizeMeeting(sessionId, messages); // Финализируем встречу
     await page.close(); // Закрываем текущую страницу
   }
 
@@ -48,7 +50,7 @@ async function scrapeChat(page, sessionId) {
 }
 
 // Функция для проверки участников
-async function checkParticipants(currentPage, sessionId) {
+async function checkParticipants(currentPage, messages) {
   try {
     // Проверяем, существует ли список участников
     const participantsListExists = await currentPage.$('[data-testid="participantsListRoot"]');
@@ -92,18 +94,19 @@ async function checkParticipants(currentPage, sessionId) {
 }
 
 // Функция для финализации встречи
-async function finalizeMeeting(sessionId) {
+async function finalizeMeeting(sessionId, messages) {
   console.log(`Финализируем встречу для сессии ${sessionId}...`);
 
-  // Здесь будет ваш код для отправки запроса на финализацию встречи.
-  // Например, вы можете сделать HTTP-запрос к вашему серверу для завершения сессии.
+  console.log(`Финализируем встречу для сессии ${sessionId}...`);
 
-  // Пример:
-  /*
-  await axios.post(`http://localhost:5000/finalize-meeting`, {
-    sessionId: sessionId
-  });
-  */
+  // Добавляем последнее сообщение в массив сообщений
+  const finalMessage = {
+    sender: 'final_speaker',
+    content: 'Встреча завершена.',
+    timestamp: new Date().toLocaleTimeString(), // Временная метка текущего времени
+  };
+
+  messages.push(finalMessage); // Добавляем сообщение о завершении встречи в массив
 
   console.log(`Встреча для сессии ${sessionId} успешно финализирована.`);
 }
