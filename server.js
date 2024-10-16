@@ -7,7 +7,6 @@ const { sendMessage } = require('./utils/sendMessages');
 const { enableTranscription } = require('./utils/enableTranscription'); 
 const { connectMeatup } = require('./utils/connectMeatup'); 
 
-
 dotenv.config();
 
 const app = express();
@@ -124,7 +123,7 @@ app.post('/send-message', async (req, res) => {
   }
 });
 
-// Функция для циклического запроса истории и отправки резюме каждые 30 секунд
+// Функция для циклического запроса истории, отправки резюме и вызова scrum-master каждые 60 секунд
 async function startPolling(sessionId) {
   const sessionIdStr = String(sessionId); // Преобразуем в строку
 
@@ -149,18 +148,35 @@ async function startPolling(sessionId) {
 
       const summary = summaryResponse.data.summary;
 
-      // 3. Отправляем полученное резюме в /send-message
-      // await axios.post('http://localhost:5000/send-message', {
-      //   sessionId: sessionIdStr, // Обязательно передаем как строку
-      //   message: summary
-      // });
-
+      // Логируем полученное резюме
       console.log('Получено резюме \n:', summary);
+
+      // 3. Вызываем эндпоинт scrum-master для получения сообщения
+      const scrumMasterResponse = await axios.post('http://127.0.0.1:8000/scrum-master/', {
+        messages: history
+      });
+
+      const scrumMasterMessage = scrumMasterResponse.data.decision;
+
+      console.log("Ответ скрам мастера",scrumMasterMessage)
+
+      // Проверяем ответ scrum-master и если он не 'w8', отправляем сообщение
+      if (scrumMasterMessage !== 'w8' || scrumMasterMessage === undefined) { 
+        await axios.post('http://localhost:5000/send-message', {
+          sessionId: sessionIdStr, // Обязательно передаем как строку
+          message: scrumMasterMessage
+        });
+
+        console.log('Сообщение от scrum-master отправлено:', scrumMasterMessage);
+      } else {
+
+        console.log('Ответ от scrum-master: "w8", сообщение не отправлено');
+      }
 
     } catch (error) {
       console.error('Ошибка при запросе и отправке данных:', error.message);
     }
-  }, 10000); // Интервал 30 секунд
+  }, 20000); // Интервал 20 секунд
 }
 
 // Запуск сервера

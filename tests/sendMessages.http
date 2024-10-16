@@ -1,3 +1,3 @@
 curl -X POST http://localhost:5000/send-message \
      -H "Content-Type: application/json" \
-     -d '{"meetingUrl": "https://jazz.sberbank.ru/sber-2hd5e8?psw=OBcIHBseDhEdBw8KRAoZAhINEg", "message": "Привет, мир!"}'
+     -d '{"sessionId": "1728998060654", "message": "Привет, мир!"}'
